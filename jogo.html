@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Phaser Game</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+      var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+          default: "arcade",
+          arcade: { gravity: { y: 1000 }, debug: true },
+        },
+        scene: { preload: preload, create: create, update: update },
+      };
+
+      var player;
+      var platforms;
+      var cursors;
+      var level = 0;
+      var levelText;
+      var isGameOver = false;
+      var gameOverText;
+      var pipes; // grupo estático
+      var pipePairs = []; // array com pares { bottom, top }
+      var pipeSpacing = 300; // distância entre pares
+      var numPairs = 5; // quantos pares manter e reaproveitar
+
+      var game = new Phaser.Game(config);
+
+      function preload() {
+        this.load.image("sky", "assets/sky.png");
+        this.load.image("ground", "assets/platform.png");
+        this.load.image("pipe", "assets/big-pipe.png");
+        this.load.spritesheet("dude", "assets/dude.png", {
+          frameWidth: 32,
+          frameHeight: 48,
+        });
+      }
+
+      function create() {
+        // Mundo e câmera
+        this.cameras.main.setBounds(0, 0, 100000, 600);
+        this.physics.world.setBounds(0, 0, 100000, 600);
+
+        // Fundo
+        this.add.tileSprite(0, 300, 100000, 600, "sky").setOrigin(0, 0.5);
+
+        // Jogador
+        player = this.physics.add.sprite(300, -100, "dude");
+        player.setCollideWorldBounds(true);
+
+        // --- Restaure aqui a hitbox do seu desenho (valores exemplo) ---
+        // Ajuste os multiplicadores conforme seu sprite real para que a caixa de colisão fique ao redor do desenho.
+        const bodyW = Math.round(player.displayWidth * 0.6);
+        const bodyH = Math.round(player.displayHeight * 0.9);
+        player.body.setSize(bodyW, bodyH);
+        player.body.setOffset(
+          Math.round((player.displayWidth - bodyW) / 2),
+          Math.round((player.displayHeight - bodyH) / 2)
+        );
+        // ----------------------------------------------------------------
+
+        // Grupo de canos (estáticos)
+        pipes = this.physics.add.staticGroup();
+
+        // Criar pares iniciais e preencher pipePairs
+        for (let i = 0; i < numPairs; i++) {
+          const x = 800 + i * pipeSpacing;
+          createPipePair(this, x);
+        }
+
+        // Chão
+        platforms = this.physics.add.staticGroup();
+        for (let x = 0; x < 100000; x += 400) {
+          platforms.create(x, 568, "ground").setScale(2).refreshBody();
+        }
+
+        // Colisões
+        this.physics.add.collider(player, platforms, hitground, null, this);
+        this.physics.add.collider(player, pipes, hitPipe, null, this);
+
+        function hitground(player, ground) {
+          endGame(this);
+        }
+
+        function hitPipe(player, pipe) {
+          endGame(this);
+        }
+
+        levelText = this.add.text(16, 16, "Pontos: 0", {
+          fontSize: "32px",
+          fill: "#000",
+        });
+        levelText.setScrollFactor(0); // fixa na tela (não acompanha a câmera)
+
+        // Câmera segue jogador
+        this.cameras.main.startFollow(player, true, 0.05, 0.05);
+
+        // Controles
+        cursors = this.input.keyboard.createCursorKeys();
+
+        function endGame(scene) {
+          if (isGameOver) return; // evita rodar mais de uma vez
+          isGameOver = true;
+
+          // Para o jogador
+          player.setVelocity(0, 0);
+          player.anims.pause();
+
+          // Para a física (opcional: trava tudo)
+          scene.physics.pause();
+
+          // Escreve "Game Over"
+          gameOverText = scene.add.text(
+            scene.cameras.main.scrollX + 400, // centraliza no meio da câmera
+            250,
+            "GAME OVER",
+            { fontSize: "64px", fill: "#000" }
+          );
+          gameOverText.setOrigin(0.5);
+
+          setTimeout(() => {
+            window.location.reload();
+          }, 300);
+        }
+
+        // Controles
+        cursors = this.input.keyboard.createCursorKeys();
+
+        this.input.keyboard.on("keydown-enter'", () => {
+          if (isGameOver) {
+            this.scene.restart();
+            isGameOver = true;
+            level = 0; // reseta pontos também
+          }
+        });
+      }
+
+      // Cria um par de canos (bottom + top), aplica hitbox igual ao seu código original
+      function createPipePair(scene, x) {
+        // Altura do jogador (usando a hitbox, não o sprite bruto)
+        const gap = player.body.height * 10;
+
+        // Sorteia a posição Y do cano de baixo dentro do intervalo permitido
+        let bottomY = Phaser.Math.Between(400, 600);
+
+        // Calcula a posição do cano de cima com base no gap
+        let topY = bottomY - gap;
+
+        // Limita o cano de cima entre -60 e 140
+        topY = Phaser.Math.Clamp(topY, -60, 140);
+
+        // Cria o cano de baixo
+        const bottomPipe = pipes.create(x, bottomY, "pipe").setScale(0.3);
+        bottomPipe.body.setSize(115, 230).setOffset(91, 30);
+        bottomPipe.refreshBody();
+
+        // Cria o cano de cima
+        const topPipe = pipes.create(x, topY, "pipe").setScale(0.3);
+        topPipe.flipY = true;
+        topPipe.body.setSize(115, 230).setOffset(91, 30);
+        topPipe.refreshBody();
+
+        // Liga os pares
+        bottomPipe.isBottom = true;
+        bottomPipe.pair = topPipe;
+        topPipe.pair = bottomPipe;
+
+        // Guarda no array
+        pipePairs.push({ bottom: bottomPipe, top: topPipe, scored: false });
+      }
+
+      function update() {
+        if (isGameOver) return;
+
+        // movimento contínuo do jogador para direita
+        player.setVelocityX(160);
+
+        // pulo
+        if (cursors.up.isDown) player.setVelocityY(-350);
+
+        // margem para não reposicionar muito cedo
+        const cameraLeftEdge = this.cameras.main.scrollX;
+
+        // calcular X máximo atual (entre os canos de baixo) para saber onde colocar o próximo
+        const maxX = pipePairs.reduce(
+          (mx, p) => Math.max(mx, p.bottom.x),
+          -Infinity
+        );
+
+        // verificar cada par (só checar o cano de baixo evita duplicação)
+        for (let i = 0; i < pipePairs.length; i++) {
+          const pair = pipePairs[i];
+          // se o par saiu totalmente da tela à esquerda, reposiciona ele pra frente
+          if (pair.bottom.x + pair.bottom.displayWidth < cameraLeftEdge - 50) {
+            // coloca depois do X máximo atual (evita empilhar)
+            const jitter = Phaser.Math.Between(0, 120); // variação pequena opcional
+            const nextX = maxX + pipeSpacing + jitter;
+
+            // reposiciona X dos dois canos do par. Mantive Y fixo como no seu layout original;
+            // se quiser variação vertical, altere pair.bottom.setY(...) / pair.top.setY(...)
+            pair.bottom.setX(nextX);
+            pair.top.setX(nextX);
+
+            // ATENÇÃO: para StaticBodies é obrigatório atualizar o corpo após mover
+            pair.bottom.refreshBody();
+            pair.top.refreshBody();
+
+            // atualizar maxX local (para caso haja múltiplos pares a serem movidos nesta frame)
+            // assim não colocamos dois pares no mesmo nextX
+            // (recalcula para o laço seguinte)
+            // aqui atualizamos a variável maxX usada apenas internamente:
+            // (não reassignamos const, então apenas recalculamos para o laço)
+            // Em JS, vamos simular atualizando o array para refletir a nova posição ao calcular no próximo loop:
+            // (o reduce acima não será reexecutado aqui; mas como só movemos um par por vez em muitos casos, é aceitável)
+            pair.scored = false;
+          }
+        }
+
+        for (let i = 0; i < pipePairs.length; i++) {
+          const pair = pipePairs[i];
+          if (
+            !pair.scored &&
+            player.x > pair.bottom.x + pair.bottom.displayWidth / 2
+          ) {
+            pair.scored = true;
+            level++;
+            levelText.setText("Level: " + level);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

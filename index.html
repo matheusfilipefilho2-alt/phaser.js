@@ -21,7 +21,7 @@
         height: 600,
         physics: {
           default: "arcade",
-          arcade: { gravity: { y: 1000 }, debug: true },
+          arcade: { gravity: { y: 1000 }},
         },
         scene: { preload: preload, create: create, update: update },
       };
@@ -144,9 +144,9 @@
           );
           gameOverText.setOrigin(0.5);
 
-          // setTimeout(() => {
-          //   window.location.reload();
-          // }, 10000);
+          setTimeout(() => {
+            window.location.reload();
+          }, 10000);
         }
 
         // Controles

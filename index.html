@@ -21,12 +21,12 @@
         height: 600,
         physics: {
           default: "arcade",
-          arcade: { gravity: { y: 1000 }}
+          arcade: { gravity: { y: 1000 }, debug: true },
         },
         scene: { preload: preload, create: create, update: update },
       };
 
-      var player;
+      var dude;
       var platforms;
       var cursors;
       var level = 0;
@@ -41,12 +41,12 @@
       var game = new Phaser.Game(config);
 
       function preload() {
-        this.load.image("sky", "assets/sky.png");
-        this.load.image("ground", "assets/platform.png");
+        this.load.image("sky", "assets/fundo-v2.png");
+        this.load.image("ground", "assets/ground-v2.png");
         this.load.image("pipe", "assets/big-pipe.png");
-        this.load.spritesheet("dude", "assets/dude.png", {
-          frameWidth: 32,
-          frameHeight: 48,
+        this.load.spritesheet("dude", "assets/passaro-02.png", {
+          frameWidth: 275,
+          frameHeight: 240,
         });
       }
 
@@ -59,17 +59,29 @@
         this.add.tileSprite(0, 300, 100000, 600, "sky").setOrigin(0, 0.5);
 
         // Jogador
-        player = this.physics.add.sprite(300, -100, "dude");
-        player.setCollideWorldBounds(true);
+         const config = {
+          key: "dudeAnimation", 
+          frames: this.anims.generateFrameNumbers("dude", { start: 1, end: 4 }),
+          frameRate: 5,
+          repeat: -1
+        }
+        this.anims.create(config)
+
+        dude = this.physics.add.sprite(300, -100, "dude");
+        dude.setScale(0.2, 0.2);
+        dude.play("dudeAnimation")
+        //dude.setCollideWorldBounds(true);
+
 
         // --- Restaure aqui a hitbox do seu desenho (valores exemplo) ---
         // Ajuste os multiplicadores conforme seu sprite real para que a caixa de colisão fique ao redor do desenho.
-        const bodyW = Math.round(player.displayWidth * 0.6);
-        const bodyH = Math.round(player.displayHeight * 0.9);
-        player.body.setSize(bodyW, bodyH);
-        player.body.setOffset(
-          Math.round((player.displayWidth - bodyW) / 2),
-          Math.round((player.displayHeight - bodyH) / 2)
+        console.log(dude.displayWidth, dude.displayHeight);
+        const bodyW = Math.round(dude.displayWidth * 0.09);
+        const bodyH = Math.round(dude.displayHeight * 1);
+        dude.body.setSize(234, 234);
+        dude.body.setOffset(
+          Math.round((dude.displayWidth - bodyW) / 2),
+          Math.round((dude.displayHeight - bodyH) / 2)
         );
         // ----------------------------------------------------------------
 
@@ -85,18 +97,18 @@
         // Chão
         platforms = this.physics.add.staticGroup();
         for (let x = 0; x < 100000; x += 400) {
-          platforms.create(x, 568, "ground").setScale(2).refreshBody();
+          platforms.create(x, 700, "ground").setScale(2).refreshBody();
         }
 
         // Colisões
-        this.physics.add.collider(player, platforms, hitground, null, this);
-        this.physics.add.collider(player, pipes, hitPipe, null, this);
+        this.physics.add.collider(dude, platforms, hitground, null, this);
+        this.physics.add.collider(dude, pipes, hitPipe, null, this);
 
-        function hitground(player, ground) {
+        function hitground(dude, ground) {
           endGame(this);
         }
 
-        function hitPipe(player, pipe) {
+        function hitPipe(dude, pipe) {
           endGame(this);
         }
 
@@ -107,7 +119,7 @@
         levelText.setScrollFactor(0); // fixa na tela (não acompanha a câmera)
 
         // Câmera segue jogador
-        this.cameras.main.startFollow(player, true, 0.05, 0.05);
+        this.cameras.main.startFollow(dude, true, 0.05, 0.05);
 
         // Controles
         cursors = this.input.keyboard.createCursorKeys();
@@ -117,8 +129,8 @@
           isGameOver = true;
 
           // Para o jogador
-          player.setVelocity(0, 0);
-          player.anims.pause();
+          dude.setVelocity(0, 0);
+          dude.anims.pause();
 
           // Para a física (opcional: trava tudo)
           scene.physics.pause();
@@ -132,9 +144,9 @@
           );
           gameOverText.setOrigin(0.5);
 
-          setTimeout(() => {
-            window.location.reload();
-          }, 300);
+          // setTimeout(() => {
+          //   window.location.reload();
+          // }, 10000);
         }
 
         // Controles
@@ -152,7 +164,7 @@
       // Cria um par de canos (bottom + top), aplica hitbox igual ao seu código original
       function createPipePair(scene, x) {
         // Altura do jogador (usando a hitbox, não o sprite bruto)
-        const gap = player.body.height * 10;
+        const gap = dude.body.height * 10;
 
         // Sorteia a posição Y do cano de baixo dentro do intervalo permitido
         let bottomY = Phaser.Math.Between(400, 600);
@@ -187,10 +199,10 @@
         if (isGameOver) return;
 
         // movimento contínuo do jogador para direita
-        player.setVelocityX(160);
+        dude.setVelocityX(160);
 
         // pulo
-        if (cursors.up.isDown) player.setVelocityY(-350);
+        if (cursors.up.isDown) dude.setVelocityY(-350);
 
         // margem para não reposicionar muito cedo
         const cameraLeftEdge = this.cameras.main.scrollX;
@@ -234,7 +246,7 @@
           const pair = pipePairs[i];
           if (
             !pair.scored &&
-            player.x > pair.bottom.x + pair.bottom.displayWidth / 2
+            dude.x > pair.bottom.x + pair.bottom.displayWidth / 2
           ) {
             pair.scored = true;
             level++;
